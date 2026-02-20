@@ -9,7 +9,7 @@ st.set_page_config(page_title="Dashboard Operativo - MetadataSur", layout="wide"
 @st.cache_data
 def load_data():
     # Asegúrate de que el archivo CSV esté en la misma carpeta que app.py
-    df = pd.read_csv('Turnos_ANT.xlsx - Sheet1.csv')
+    df = pd.read_csv('Turnos_ANT.xlsx')
     
     # Limpiar nombres de columnas (quitar espacios extra y saltos de línea de tu archivo)
     df.columns = [col.strip().replace('\n', '') for col in df.columns]
