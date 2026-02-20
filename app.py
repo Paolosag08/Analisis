@@ -6,14 +6,13 @@ from sqlalchemy import create_engine
 # 1. Configuración de la página
 st.set_page_config(page_title="Análisis Operativo - MetadataSur", layout="wide")
 
-# 2. Conexión a Neon y carga de datos (con caché para que vuele)
+# 2. Conexión a Neon y carga de datos
 @st.cache_data(ttl=600) # Se actualiza cada 10 minutos
 def load_data():
-    # Tu conexión a Neon
     URL_NEON = "postgresql://neondb_owner:npg_S0DXeQT4KYCl@ep-fragrant-water-aigaxh2j-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
     engine = create_engine(URL_NEON)
     
-    # Traemos los datos de la tabla que acabas de crear
+    # Traemos los datos. Pandas respetará los nombres originales: 'Fecha Emisión', 'Sector', etc.
     query = "SELECT * FROM turnos_historico"
     df = pd.read_sql(query, engine)
     return df
@@ -27,21 +26,21 @@ except Exception as e:
 # 3. Interfaz y Filtros
 st.sidebar.title("Filtros Globales")
 
-# Convertimos las fechas para el filtro
-df['fecha_emision'] = pd.to_datetime(df['fecha_emision'])
-fecha_min, fecha_max = df['fecha_emision'].min().date(), df['fecha_emision'].max().date()
+# Usamos los nombres exactos con mayúsculas y espacios
+df['Fecha Emisión'] = pd.to_datetime(df['Fecha Emisión'])
+fecha_min, fecha_max = df['Fecha Emisión'].min().date(), df['Fecha Emisión'].max().date()
 fechas_seleccionadas = st.sidebar.date_input("Rango de Fechas", [fecha_min, fecha_max], min_value=fecha_min, max_value=fecha_max)
 
 # Filtro de Sector
-sectores = df['sector_emision'].dropna().unique().tolist()
+sectores = df['Sector'].dropna().unique().tolist()
 sector_seleccionado = st.sidebar.multiselect("Sector", options=sectores, default=sectores)
 
 # Aplicar filtros
 if len(fechas_seleccionadas) == 2:
-    mask = (df['fecha_emision'].dt.date >= fechas_seleccionadas[0]) & (df['fecha_emision'].dt.date <= fechas_seleccionadas[1]) & (df['sector_emision'].isin(sector_seleccionado))
+    mask = (df['Fecha Emisión'].dt.date >= fechas_seleccionadas[0]) & (df['Fecha Emisión'].dt.date <= fechas_seleccionadas[1]) & (df['Sector'].isin(sector_seleccionado))
     df_filtrado = df[mask]
 else:
-    df_filtrado = df[df['sector_emision'].isin(sector_seleccionado)]
+    df_filtrado = df[df['Sector'].isin(sector_seleccionado)]
 
 # 4. Título Principal
 st.title("📊 Análisis Operativo de Turnos")
@@ -51,10 +50,12 @@ st.divider()
 # 5. KPIs y Gráficos
 if not df_filtrado.empty:
     total_turnos = len(df_filtrado)
-    abandonos = len(df_filtrado[df_filtrado['estado'].isin(['NO ATENDIDO', 'CANCELADO'])])
+    abandonos = len(df_filtrado[df_filtrado['Estado'].isin(['NO ATENDIDO', 'CANCELADO'])])
     tasa_abandono = (abandonos / total_turnos) * 100 if total_turnos > 0 else 0
-    tme = df_filtrado['tiempo_espera_seg'].mean() / 60
-    tma = df_filtrado['tiempo_atencion_seg'].mean() / 60
+    
+    # Usamos las columnas de minutos que ya se habían calculado al subir a Neon
+    tme = df_filtrado['Espera_Minutos'].mean()
+    tma = df_filtrado['Atencion_Minutos'].mean()
 
     # KPIs
     col1, col2, col3, col4 = st.columns(4)
@@ -69,16 +70,16 @@ if not df_filtrado.empty:
 
     with row1_col1:
         st.subheader("Tiempo de Espera por Sector")
-        espera_sector = df_filtrado.groupby('sector_emision')['tiempo_espera_seg'].mean().reset_index()
-        espera_sector['minutos'] = espera_sector['tiempo_espera_seg'] / 60
-        espera_sector = espera_sector.sort_values(by='minutos')
-        fig_espera = px.bar(espera_sector, x='minutos', y='sector_emision', orientation='h',
-                            color='minutos', color_continuous_scale='Reds')
+        espera_sector = df_filtrado.groupby('Sector')['Espera_Minutos'].mean().reset_index()
+        espera_sector = espera_sector.sort_values(by='Espera_Minutos')
+        fig_espera = px.bar(espera_sector, x='Espera_Minutos', y='Sector', orientation='h',
+                            color='Espera_Minutos', color_continuous_scale='Reds',
+                            labels={'Espera_Minutos': 'Minutos', 'Sector': 'Sector'})
         st.plotly_chart(fig_espera, use_container_width=True)
 
     with row1_col2:
         st.subheader("Estado Final de Atención")
-        estado_turnos = df_filtrado['estado'].value_counts().reset_index()
+        estado_turnos = df_filtrado['Estado'].value_counts().reset_index()
         estado_turnos.columns = ['Estado', 'Cantidad']
         fig_estado = px.pie(estado_turnos, names='Estado', values='Cantidad', hole=0.4,
                             color='Estado', color_discrete_map={'ATENDIDO': '#2ca02c', 'NO ATENDIDO': '#d62728', 'CANCELADO': '#7f7f7f'})
