@@ -106,3 +106,25 @@ if not df_filtrado.empty:
 
 else:
     st.warning("No hay datos para los filtros seleccionados.")
+
+# --- SISTEMA DE LOGIN MVP ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.title("🔒 Acceso a MetadataSur - Análisis")
+    st.markdown("Por favor, ingresá tus credenciales para ver el dashboard operativo.")
+    
+    usuario = st.text_input("Usuario")
+    clave = st.text_input("Contraseña", type="password")
+    
+    if st.button("Ingresar"):
+        # Credenciales de prueba para tu primer cliente
+        if usuario == "selma_admin" and clave == "selma2026":
+            st.session_state.autenticado = True
+            st.rerun() # Recarga la página ya autenticado
+        else:
+            st.error("Usuario o contraseña incorrectos")
+            
+    st.stop() # Esto es vital: frena la ejecución para que no se muestre el dashboard abajo
+# -----------------------------
