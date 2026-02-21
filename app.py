@@ -26,7 +26,18 @@ except Exception as e:
 # 3. Interfaz y Filtros
 st.sidebar.title("Filtros Globales")
 
-# Usamos los nombres exactos con mayúsculas y espacios
+# --- NUEVO: Filtro de Sucursales ---
+# Extraemos todas las sucursales únicas que existen en tu base de datos de Neon
+sucursales_disponibles = df['Sucursal'].dropna().unique().tolist()
+
+# Creamos un selector múltiple en la barra lateral
+sucursales_seleccionadas = st.sidebar.multiselect(
+    "Seleccionar Sucursal", 
+    options=sucursales_disponibles, 
+    default=sucursales_disponibles # Por defecto muestra todas
+)
+
+# Convertimos las fechas para el filtro
 df['Fecha Emisión'] = pd.to_datetime(df['Fecha Emisión'])
 fecha_min, fecha_max = df['Fecha Emisión'].min().date(), df['Fecha Emisión'].max().date()
 fechas_seleccionadas = st.sidebar.date_input("Rango de Fechas", [fecha_min, fecha_max], min_value=fecha_min, max_value=fecha_max)
@@ -35,16 +46,24 @@ fechas_seleccionadas = st.sidebar.date_input("Rango de Fechas", [fecha_min, fech
 sectores = df['Sector'].dropna().unique().tolist()
 sector_seleccionado = st.sidebar.multiselect("Sector", options=sectores, default=sectores)
 
-# Aplicar filtros
+# --- NUEVO: Aplicar TODOS los filtros juntos ---
+# Verificamos que se hayan seleccionado fechas de inicio y fin
 if len(fechas_seleccionadas) == 2:
-    mask = (df['Fecha Emisión'].dt.date >= fechas_seleccionadas[0]) & (df['Fecha Emisión'].dt.date <= fechas_seleccionadas[1]) & (df['Sector'].isin(sector_seleccionado))
+    mask = (
+        (df['Fecha Emisión'].dt.date >= fechas_seleccionadas[0]) & 
+        (df['Fecha Emisión'].dt.date <= fechas_seleccionadas[1]) & 
+        (df['Sector'].isin(sector_seleccionado)) & 
+        (df['Sucursal'].isin(sucursales_seleccionadas)) # Acá filtramos la sucursal
+    )
     df_filtrado = df[mask]
 else:
-    df_filtrado = df[df['Sector'].isin(sector_seleccionado)]
+    df_filtrado = df[(df['Sector'].isin(sector_seleccionado)) & (df['Sucursal'].isin(sucursales_seleccionadas))]
 
-# 4. Título Principal
+# 4. Título Principal Dinámico
 st.title("📊 Análisis Operativo de Turnos")
-st.markdown(f"**Sucursal:** ANT | **Periodo Seleccionado:** {fechas_seleccionadas[0]} al {fechas_seleccionadas[-1] if len(fechas_seleccionadas)>1 else fechas_seleccionadas[0]}")
+# Mostramos en el título qué sucursales se están viendo
+nombres_sucursales = ", ".join(sucursales_seleccionadas) if sucursales_seleccionadas else "Ninguna"
+st.markdown(f"**Sucursales analizadas:** {nombres_sucursales} | **Periodo:** {fechas_seleccionadas[0]} al {fechas_seleccionadas[-1] if len(fechas_seleccionadas)>1 else fechas_seleccionadas[0]}")
 st.divider()
 
 # 5. KPIs y Gráficos
